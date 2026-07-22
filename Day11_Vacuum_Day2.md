@@ -173,3 +173,25 @@ Because freeze activity is not instantaneous — it can take anywhere from minut
 **Q4. Does the transaction ID wraparound limit apply per database, or across the whole instance?**
 
 Across the whole instance — confirmed directly. All databases within one PostgreSQL instance draw from the same shared pool of up to 2 billion transaction IDs; there's no per-database isolation of this resource, so unmanaged transaction ID growth in any single database within a multi-database instance is a risk to the entire instance, not just that one database.
+
+**Q5. If a page is modified but the checkpoint hasn't run yet, does that "dirty" state factor into vacuum's cost accounting even though nothing has reached disk yet?**
+
+Yes — confirmed directly: "dirty," for vacuum cost purposes, means modified-in-memory-and-not-yet-written-to-disk, regardless of whether a checkpoint has occurred. The dirty-page cost tier in the vacuum cost formula reflects this in-memory-but-unwritten state specifically, not disk I/O that has already happened.
+
+---
+
+**Q6. Once a transaction ID is frozen, does that row ever need to be vacuumed or frozen again?**
+
+Yes — confirmed directly: freezing is not a permanent, one-time state for a row. Any subsequent `UPDATE` or `DELETE` on that row creates new row versions with fresh transaction IDs, which will themselves eventually need to go through the same freeze cycle again as the system continues consuming transaction IDs over time.
+
+---
+
+**Q7. If a database reaches the wraparound limit and stops accepting new transactions, is there a special command syntax needed to recover?**
+
+No special syntax — confirmed directly: you log in normally (read access works throughout), identify and terminate the blocking long-running transaction(s), then run standard `VACUUM FREEZE`. There's no unique "wraparound recovery mode" command; it's the same `VACUUM FREEZE` command used in normal operation, just now finally unblocked once its obstruction is removed.
+
+---
+
+**Q8. Does running `VACUUM FULL` help address transaction ID wraparound risk, since it rebuilds the table?**
+
+No — explicitly and directly corrected: `VACUUM FULL` (or `pg_repack`) rebuilding a table has nothing to do with transaction ID recycling. Only `VACUUM FREEZE` (or a plain/automatic vacuum's freeze-eligible activity) actually reduces wraparound risk. Table recreation and transaction ID management are two entirely separate concerns that happen to both fall under the broader "vacuum" umbrella of activities.
