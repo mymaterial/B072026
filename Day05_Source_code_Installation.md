@@ -5,7 +5,7 @@
 > **Classification:** Internal Use Only
 
 ---
-### 0. The Universal Three-Step Install Process
+## The Universal Three-Step Install Process
 
 Repeated explicitly as the takeaway, regardless of which of the three methods is used:
 
